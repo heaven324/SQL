@@ -1,0 +1,57 @@
+﻿POSIX Operators in Oracle SQL Regular Expressions
+
+ . : The expression a.b matches the strings abb, acb, and adb, but does not match acc.
+
+ + : The expression a+ matches the strings a, aa, and aaa, but does not match ba or ab.
+
+ * : The expression ab*c matches the strings ac, abc, and abbc, but does not match abb or bbc.
+
+ ? : The expression ab?c matches the strings abc and ac, but does not match abbc or adc.
+
+ {m} : The expression a{3} matches the string aaa, but does not match aa.
+
+ {m, } : The expression a{3,} matches the strings aaa and aaaa, but does not match aa.
+
+ {m, n} : The expression a{3,5} matches the strings aaa, aaaa, and aaaaa, but does not match aa or 
+	  aaaaaa.
+
+ [char...] : The expression [abc] matches the first character in the strings all, bill, and cold, 
+	     but does not match any characters in doll.
+
+ [^char...] : The expression [^abc]def matches the string xdef, but not adef, bdef, or cdef.
+	      The expression [^a-i]x matches the string jx, but does not match ax, fx, or ix.
+[alt1 | alt2] : The expression a|b matches the character a or b.
+
+(expr) : The expression (abc)?def matches the strings abcdef and def, but does not match abcdefg 
+	 or xdef.
+
+\n : The expression (abc|def)xy\1 matches the strings abcxyabc and defxydef, but does not match 
+     abcxydef or abcxy     The expression ^(.*)\1$ matches a line consisting of two adjacent instances of the same string.
+
+\ :The expression abc\+def matches the string abc+def, but does not match abcdef or abccdef. (escape)
+
+^ : The expression ^def matches the substring def in the string defghi but not in the string abcdef.
+
+$ :The expression def$ matches the substring def in the string abcdef but not in the string defghi.
+
+[:class:] : The expression [:upper:]+, which specifies one or more consecutive uppercase characters, 
+	    matches the substring DEF in the string abcDEFghi, but does not match any substring in 
+	    abcdefghi.
+
+[.element.] : The expression [.ch.], which specifies the collating element ch, matches ch in the string 
+	      chabc, but does not match any substring in cdefg.
+	      The expression [a-[.ch.]] specifies the range from a through ch.
+
+
+[=char=] : The expression [[=n=]], which specifies characters equivalent to n in a Spanish locale, 
+	   matches both N and ñ in the string El Niño.
+
+
+
+
+
+
+
+
+
+

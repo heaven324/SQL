@@ -1,0 +1,632 @@
+﻿★ 어제 마지막 시간 배운 with절 복습
+
+ * with절을 사용했을 때의 이점 ?
+
+	1. 하나의 SQL안에서 반복되는 쿼리문을 반복작성하지 않고 단순하게 작성할 수 있는 장점
+
+		예 : select deptno, sum(sal)
+			from emp
+			group by deptno
+			having sum(sal) > (select avg(sum(sal))
+					     from emp
+					     group by deptno );
+				↓
+
+			with emp5 as (select deptno, sum(sal) 토탈월급
+					from emp
+					group by deptno )
+			select deptno, 토탈월급
+			  from emp5
+			  where 토탈월급 > ( select avg(토탈월급)
+						from emp5 );
+
+create view emp5
+as
+select deptno, sum(sal) 토탈월급
+  from emp 
+  group by deptno;
+
+select deptno, 토탈월급
+  from emp5
+  where 토탈월급 > ( select avg(토탈월급)
+			from emp );
+
+※ 뷰를 만들어서 코드는 단순해졌는데 뷰는 데이터를 저장하지않고 쿼리를 저장하기 때문에 필요할때마다 뷰쿼리를 
+   수행하므로 성능이 화살표 이전의 상태와 비슷하다.
+
+※ view와 with절의 차이는 ?
+
+   view는 view 셀렉트 할때 마다 무거운 쿼리 수행해야 한다. 그러나 with절은 temp table만들 때 한번만 무거운 
+   SQL을 수행하면 된다
+
+
+	2. 급하게 테이블을 만들어야 할 때 만들려고 DBA에게 요청하지 않아도 되고 with절로 temp table을 
+	   만들어서 쿼리할 수 있다.
+		view도 만드려면 dba허락을 받아야 한다.
+
+	 예 : 수학자 가우스가 초등학교때 알아낸 공식을 이용해서 1부터 10까지 다 더한 숫자의 합을 구하시오!
+			CREATE TABLE number10 
+			AS SELECT ROWNUM AS rnum FROM dual CONNECT 
+			by ROWNUM <11;
+				테이블 만들어야 함!
+			with number10 as (SELECT ROWNUM AS rnum FROM dual CONNECT 
+			                      by ROWNUM <11)
+			select sum(rnum) from number10;
+				테이블 안만들어도 됨
+
+문제 521. 가우스의 공식으로 1부터 100까지의 합을 SQL로 구하시오 !
+	with number100 as (select rownum as rn 
+			     from dual 
+			     connect by rownum < 101 )
+	select sum(rn) 
+	from number100;
+
+	with number100 as (select rownum as rn 
+			     from dual 
+			     connect by rownum < 101 )
+	SELECT ( MAX(rn)+min(rn) )*max(rn)/2  
+	  FROM NUMBER100;
+
+		===========================
+		(MAX(RN)+MIN(RN))*MAX(RN)/2
+		---------------------------
+		                       5050
+		===========================
+
+
+문제 522. 1부터 1억까지 다 더한 숫자의 합을 SQL로 구하시오!
+	select (1+100000000)*(100000000/2) from dual;
+
+
+ * with절 힌트
+	1. inline   ---> temp 테이블 사용 안하겠다. (다시 서브쿼리로 바꿔주는 힌트)
+		temp 저장공간이 부족한데 with절 남발하면 오히려 오래걸림
+	2. materialize ---> temp 테이블 사용하겠다.
+		temp 저장공간이 다시 충분해 지면 materialize써서 temp저장공간 사용
+
+		select * from dba_temp_files;
+
+		===========================
+		(1+100000000)*(100000000/2)
+		---------------------------
+		                 5.0000E+15
+		===========================
+
+
+
+■ 18장. 정규식 지원
+
+
+ * 정규식 함수란 ? ( p 268 )
+	"문자열 데이터의 간단한 패턴 또는 복잡한 패턴을 검색하고 조작할 수 있게 해주는 함수"
+
+	regexp  -----> regular expression (정규 표현식)
+
+ * 정규식 함수의 종류 ( p 270 )
+	1. regexp_like
+	2. regexp_replace
+	3. regexp_instr
+	4. regexp_substr
+	5. regexp_count
+
+★ regexp_like
+
+문제 523. 이름에 EN 또는 IN을 포함하고 있는 사원들의 이름과 월급을 출력하시오 !
+
+	내가 아는 방법
+	select ename, sal 
+	  from emp
+	  where ename like '%EN%' or ename like '%IN%';
+
+	정규 표현식
+	select ename, sal
+	  from emp
+	  where regexp_like(ename, 'EN|IN');
+
+		===============================
+		ENAME                       SAL
+		-------------------- ----------
+		KING                       5000
+		MARTIN                     1250
+		ALLEN                      1600
+		===============================
+
+		※ 설명 : 정규표현식에서 ' | ' 는 '또는'을 의미한다 !
+			  %가 자동으로 양쪽에 인식 하는듯 ?
+
+
+문제 524. 전공이 심리학과, 통계학과, 프랑스어학과, 물리학과인 학생들의 이름과 전공을 출력하시오 !
+	내가 알던 방식
+	select ename, major
+	  from emp2
+	  where major like '%심리%' or 
+		major like '%통계%' or
+		major like '%프랑스어%' or
+		major like '%물리%' ;
+
+	정규표현식
+	select ename, major
+	  from emp2
+	  where regexp_like ( major, '심리|통계|프랑스어|물리' );
+
+	=================================================================================
+	ENAME                                                        MAJOR
+	------------------------------------------------------------ --------------------
+	서일                                                         심리학과
+	엄한솔                                                       프랑스어학과
+	김준하                                                       정보통계보험수리학과
+	김건휘                                                       통계학과
+	주소현                                                       통계학과
+	임혜진                                                       심리학과
+	이소진                                                       통계학과
+	이서영                                                       심리학과
+	안혜진                                                       통계학과
+	김진철                                                       물리학과
+	=================================================================================
+
+
+==========================================
+ * 12c 로 접속 
+
+C:\Users\stu>set ORACLE_SID=orcl
+
+C:\Users\stu>sqlplus  / as sysdba
+
+alter session set container=pdborcl;
+
+alter  database  pdborcl  open;
+
+connect scott/tiger@localhost:1522/pdborcl
+
+create  table  employees
+as
+select * from hr.employees;
+
+ * DB링크 걸기 (xe에서 해)
+create database link link_12c
+connect to scott
+identified by tiger
+using 'localhost:1522/pdborcl';
+	우리가 필요한 정보
+	|여삼빌딩|10층|아이티윌|
+ 
+select * from employees@link_12c
+
+(한번 가져와서 그냥 만들어 버려라 [데이터 이행을 이런식으로 한다] )
+CREATE TABLE employees
+as
+SELECT * FROM employees@link_12c;
+
+SELECT * FROM employees;
+==========================================
+
+
+문제 525. 12c의 hr계정의 테이블에 접근할 수 있는 디비링크를 아래와 같이 생성하시오 !
+
+	create database link link_12c_hr
+	connect to hr
+	identified by hr
+	using 'localhost:1522/pdborcl';
+	
+	select * from tab@link_12c_hr;
+		================
+		TNAME
+		----------------
+		REGIONS
+		COUNTRIES
+		LOCATIONS
+		DEPARTMENTS
+		JOBS
+		EMPLOYEES
+		JOB_HISTORY
+		EMP_DETAILS_VIEW
+		================
+
+문제 526. 12c의 hr 계정의 모든 테이블들과
+	  12c의 sh 계정의 모든 테이블들을 다 11g xe의 scott 계정에 생성하시오 ! (점심시간문제)
+
+================================
+create DATABASE LINK link_12c_sh
+CONNECT TO sh
+IDENTIFIED BY sh
+USING 'localhost:1522/pdborcl';
+	
+SELECT * FROM tab@link_12c_sh;
+================================
+
+	  SELECT 'create table '|| tname ||
+		   ' as
+	        select * from '|| tname || '@link_12c_sh;'
+	  FROM tab@link_12c_sh;
+		
+	create table SALES as
+	        select * from SALES@link_12c_sh;
+	create table COSTS as
+	        select * from COSTS@link_12c_sh;
+	create table TIMES as
+	        select * from TIMES@link_12c_sh;
+	create table PRODUCTS as
+	        select * from PRODUCTS@link_12c_sh;
+	create table CHANNELS as
+	        select * from CHANNELS@link_12c_sh;
+	create table PROMOTIONS as
+	        select * from PROMOTIONS@link_12c_sh;
+	create table CUSTOMERS as
+	        select * from CUSTOMERS@link_12c_sh;
+	create table COUNTRIES as
+	        select * from COUNTRIES@link_12c_sh;
+	create table SUPPLEMENTARY_DEMOGRAPHICS as
+	        select * from SUPPLEMENTARY_DEMOGRAPHICS@link_12c_sh;
+	create table SALES_TRANSACTIONS_EXT as
+	        select * from SALES_TRANSACTIONS_EXT@link_12c_sh;
+	create table DR$SUP_TEXT_IDX$I as
+	        select * from DR$SUP_TEXT_IDX$I@link_12c_sh;
+	create table DR$SUP_TEXT_IDX$K as
+	        select * from DR$SUP_TEXT_IDX$K@link_12c_sh;
+	create table DR$SUP_TEXT_IDX$R as
+	        select * from DR$SUP_TEXT_IDX$R@link_12c_sh;
+	create table DR$SUP_TEXT_IDX$N as
+	        select * from DR$SUP_TEXT_IDX$N@link_12c_sh;
+	create table DIMENSION_EXCEPTIONS as
+	        select * from DIMENSION_EXCEPTIONS@link_12c_sh;
+	create table PROFITS as
+	        select * from PROFITS@link_12c_sh;
+	create table CAL_MONTH_SALES_MV as
+	        select * from CAL_MONTH_SALES_MV@link_12c_sh;
+	create table FWEEK_PSCAT_SALES_MV as
+	        select * from FWEEK_PSCAT_SALES_MV@link_12c_sh;
+
+	  SELECT 'create table '|| tname ||
+		   ' as
+	        select * from '|| tname || '@link_12c_hr;'
+	  FROM tab@link_12c_hr;
+
+	create table REGIONS as
+	        select * from REGIONS@link_12c_hr;
+	create table COUNTRIES as
+	        select * from COUNTRIES@link_12c_hr;
+	create table LOCATIONS as
+	        select * from LOCATIONS@link_12c_hr;
+	create table DEPARTMENTS as
+	        select * from DEPARTMENTS@link_12c_hr;
+	create table JOBS as
+	        select * from JOBS@link_12c_hr;
+	create table EMPLOYEES as
+	        select * from EMPLOYEES@link_12c_hr;
+	create table JOB_HISTORY as
+	        select * from JOB_HISTORY@link_12c_hr;
+	create table EMP_DETAILS_VIEW as
+	        select * from EMP_DETAILS_VIEW@link_12c_hr;
+
+	select count(*) from sales;
+
+문제 527. employees 테이블에서 first_name 이 steven인 사원의 first_name, email, phone_number를 출력하시오 !
+	select first_name, email, phone_number
+	  from employees
+	  where first_name like 'Steven';
+
+		====================================
+		FIRST_NAME 	EMAIL 	PHONE_NUMBER
+		----------	-------	------------
+		Steven		SKING	515.123.4567
+		Steven		SMARKLE	650.124.1434
+		====================================
+
+
+문제 528. 이름의 첫글자가 St로 시작하면서 끝글자가 en으로 끝나는 사원들의 first_name 을 출력하시오 !
+	select first_name
+	  from employees
+	  where first_name like 'St%' 
+	    and first_name like '%en';
+
+	정규표현식
+	select first_name
+	  from employees
+	  where regexp_like ( first_name, '^Ste(.)+en$' );
+
+		==========
+		FIRST_NAME
+		----------
+		Steven
+		Steven
+		Stephen
+		==========
+
+		※ 설명 ( p 273 ~ 274 )
+		   ^    : 문자열의 시작
+		   $    : 문자열의 끝
+		   ( )  : 괄호로 묶은 식은 한단위로 나타냄
+		    .   : 문자자리 한개
+		   (.)+ : 한번이상 발생한 수 일치
+
+문제 529. 성씨가 김씨 또는 이씨로 시작하고 이름의 끝글자가 '진'인 학생의 이름을 출력하시오 !
+	내 답
+	select ename 
+	  from emp2
+	  where regexp_like ( ename, '^김(.)+진$|^이(.)+진$');
+	선생님 답
+	select ename 
+	  from emp2
+	  where regexp_like ( ename, '^(김|이)(.)진$');
+
+		=======================================================
+		insert into emp2(ename) values('김진');
+		
+			select ename 
+			  from emp2
+			  where regexp_like ( ename, '^(김|이)(.)진$');
+		안나옴
+		=======================================================
+
+★ regexp_replace
+
+문제 529. 이름과 월급을 출력하는데 월급을 출력 할 때 replace함수를 이용해서 숫자 0 을 * 로 출력하시오 !
+	select ename, replace(sal, 0, '*')
+	  from emp;
+
+	=======================================
+	ENAME                REPLACE(SAL,0,'*')
+	-------------------- ------------------
+	KING                 5***
+	BLAKE                285*
+	CLARK                245*
+	JONES                2975
+	=======================================
+
+문제 530. 이름과 월급을 출력하는데 월급 숫자 0~3까지를 *로 출력하시오 !
+	select ename, regexp_replace(sal, '[0-3]', '*')
+	  from emp;
+
+	=======================================
+	ENAME	REGEXP_REPLACE(SAL,'[0-3]','*')
+	------  -----
+	KING	5***
+	BLAKE	*85*
+	CLARK	*45*
+	JONES	*975
+	MARTIN	**5*
+	=======================================
+
+문제 531. 우리반 학생의 이름을 출력하는데 아래와 같이 중간글자가 *로 출력되게 하시오 !
+
+	=====
+	ENAME
+	-----
+	서*
+	엄*솔
+	김*구
+	김*하
+	김*휘
+	이*림
+	박*균
+	김*원
+	장*겸
+	최*혁
+	주*현
+	=====
+
+	select replace ( ename, substr( ename, 2,1 ), '*' )
+	  from emp2;
+
+문제 532. employees 테이블에서 phone_number를 아래와 같이 출력하시오 !
+
+	============
+	PHONE_NUMBER
+	------------
+	515-123-4567
+	515-123-4568
+	515-123-4569
+	590-423-4567
+	============
+
+     	select regexp_replace ( phone_number , '\.', '-' )
+	  from employees;
+
+	※ 설명 : 백슬래시(\)를 사용하여 일반적으로 메타 문자로 처리되는 문자를 검색합니다.
+
+
+★ regexp_count
+
+	예제 : 	SELECT REGEXP_COUNT(
+		'ccacctttccctccactcctcacgttctcacctgtaaagcgtccctccctcatccccatgcccccttaccctgcag
+		ggtagagtaggctagaaaccagagagctccaagctccatctgtggagaggtgccatccttgggctgcagagagaggag
+		aatttgccccaaagctgcctgcagagcttcaccacccttagtctcacaaagccttgagttcatagcatttcttgagtt
+		ttcaccctgcccagcaggacactgcagcacccaaagggcttcccaggagtagggttgccctcaagaggctcttgggtc
+		tgatggccacatcctggaattgttttcaagttgatggtcacagccctgaggcatgtaggggcgtggggatgcgctctg
+		ctctgctctcctctcctgaacccctgaaccctctggctaccccagagcacttagagccag',
+		'gtc') AS Count
+		FROM dual; 
+
+		==========
+		     COUNT
+		----------
+		         4
+		==========
+
+
+문제 533. 겨울왕국 대본에는 elsa가 몇번 나오는지 regexp_count로 카운트 하시오 !
+
+	select sum(regexp_count (LOWER(win_text), ' elsa ') ) elsa_cnt
+	  from winter_kingdom;
+
+		==========
+		  ELSA_CNT
+		----------
+		        52
+		==========
+
+
+
+
+
+문제 533-1. 안철수 연설문에서 국민이라는 단어가 몇번 나오는지 카운트 하시오 !
+
+		create table ext_pol
+		(poli varchar2(1000))
+		organization external
+		(type oracle_loader
+		default directory emp_dir2
+		access PARAMETERS 
+		(records delimited by newline
+		fields terminated by "/"
+		(poli))
+		location ('pol.txt') )
+		REJECT LIMIT UNLIMITED;
+	
+
+	select sum ( regexp_count ( poli, '국민') ) as count
+	  from ext_pol;
+
+	==========
+	     COUNT
+	----------
+	        22
+	==========
+
+
+★ regexp_instr
+
+문제 534. 우리반 테이블에서 email을 출력하고 그 옆에 email에 @ 가 몇번째 자리에 있는지 출력하시오 !
+	select email, instr(email, '@')
+	  from emp2;
+
+		==========================================
+		EMAIL                	  INSTR(EMAIL,'@')
+		-------------------- 	  ----------------
+		joil4@naver.com				 6
+		ok7821@naver.com			 7
+		jungu0519@gmail.com			10
+		hjshljy@gmail.com			 8
+		kuni4210@naver.com			 9
+		==========================================
+
+
+=====================================
+select * from locations;
+
+select street_address from locations;
+=====================================
+
+문제 535. locations 테이블에 street_address데이터에서 알파벳으로 시작되는 부분의 자리 위치가
+	  어떻게 되는지 확인하시오 !
+
+	select street_address, regexp_instr ( street_address, '[[:alpha:]]')
+	  from locations;
+
+		=================================
+		STREET_ADDRESS		     시작
+		----------------------- ---------
+		1297 Via Cola di Rie		6
+		93091 Calle della Testa		7
+		2017 Shinjuku-ku		6
+		9450 Kamiya-cho			6
+		2014 Jabberwocky Rd		6
+		2011 Interiors Blvd		6
+		2007 Zagora St			6
+		2004 Charade Rd			6
+		147 Spadina Ave			5
+		=================================
+
+문제 536. 위의 문제를 다시 해결하는데 알파벳이 아닌 곳의 위치번호를 출력하시오 !
+
+	select street_address, regexp_instr ( street_address, '[^[:alpha:]]')
+	  from locations;
+
+		=================================
+		STREET_ADDRESS 		     시작
+		-----------------------      ----
+		1297 Via Cola di Rie		1
+		93091 Calle della Testa		1
+		2017 Shinjuku-ku		1
+		9450 Kamiya-cho			1
+		2014 Jabberwocky Rd		1
+		2011 Interiors Blvd		1
+		2007 Zagora St			1
+		=================================
+
+
+★ regexp_substr
+
+문제 537. 우리반 테이블에 이메일에 체크제약을 거는데 이메일에 @가 포함되어 있지 않으면 데이터가 입력되지
+	  못하게 하시오 !
+
+	alter table emp2
+	  add constraint emp_email_ck check ( regexp_like ( email , '@' ));
+
+	테이블이 변경되었습니다.
+
+
+============================================
+create table music( m_name varchar2(2000) );
+============================================
+
+
+문제 538. 김용신 라디오 선곡표에서 아래와 같이 가수명만 잘라서 출력하시오 !
+	select m_name, substr ( m_name, instr(m_name, '-'), 40)
+	  from music
+	  WHERE INSTR ( m_name, '-') != 0;
+
+	select m_name, regexp_substr ( m_name, '[^-]+', 1, 2) 가수
+	  from music
+	  WHERE INSTR ( m_name, '-') != 0;
+
+	==========================================================================
+	M_NAME							가수
+	---------------------------------------------------	------------------
+	 1. Raindrops Keep Fallin' On My Head - B.J. Thomas 	B.J. Thomas 
+	 2. Java Jive - Manhattan Transfer    	 		Manhattan Transfer    
+	 3. Let There Be Love - Laura Fygi    	 		Laura Fygi    
+	 4. Don't You Want Me - The Human League  	 	The Human League  
+	 5. Don`t Go - Yazoo  	 				Yazoo  
+	 6. At Seventeen - Janis Ian    	 		Janis Ian    
+	 7. How Can I Tell Her - Lobo  	 			Lobo  
+	==========================================================================
+
+
+
+		※ 하이픈(-)을 기준으로 문자열을 덩어리로 나눠서 첫번째 글자부터 (-)찾아서
+		   두 부분로 쪼갠후 2번째 문자열을 출력
+
+문제 539. 김용신 라디오 선곡표에서 가장 많이 나오는 가수명과 건수와 순위를 출력하시오 !
+
+	CREATE VIEW music1
+	as
+	select m_name, trim(regexp_substr ( m_name, '[^-]+', 1, 2)) 가수
+		  from music
+		  WHERE INSTR ( m_name, '-') != 0;
+
+	select 가수, count(*), dense_rank() over (order by count(*) desc) 순위
+	  from music1
+	  group by 가수;
+
+		=================================
+		가수		COUNT(*)     순위
+		--------------- --------     ----
+		ABBA		      50	1
+		The Carpenters	      23	2
+		Boney M		      23	2
+		Michael Jackson	      21	3
+		Bee Gees	      20	4
+		Queen		      20	4
+		=================================
+
+
+문제 540. cbs 라디오 김용신 노래 선곡표에서 가장 많이 나오는 노래명과 건수와 순위를 출력하시오 !
+
+	select 노래가수, count(*), dense_rank() over (order by count(*) desc) 순위
+	  from (select m_name, trim(substr( m_name, regexp_instr(m_name, '[[:alpha:]]'))) 노래가수
+		  from music
+		  WHERE INSTR ( m_name, '-') != 0)
+	  group by 노래가수;
+
+		=========================================================
+		노래가수				 COUNT(*)    순위
+		-----------------------------------      --------    ----
+		Reality - Richard Sanderson			4	1
+		Juliet - Robin Gibb				4	1
+		Physical - Olivia Newton John			4	1
+		Funkytown - Lipps Inc.				4	1
+		Java Jive - Manhattan Transfer			4	1
+		Shake It Up - Cars				3	2
+		You're Still The One - Shania Twain		3	2
+		=========================================================

@@ -1,0 +1,473 @@
+﻿
+
+#################################################################################
+
+■ 이번주 일정
+
+ 1. SQL 뒷단원 마무리 ---> SQL 튜닝
+
+
+
+
+■ 16장, 다른 시간대에서의 데이터 관리
+	"앞에서 배우지 않았던 다른 날짜 함수들"
+
+★ extract 함수 (p 214 )
+
+	예제 : 오늘 날짜에서 년도만 추출하시오 !
+		select extract ( year from sysdate )
+		  from dual;
+
+	EXTRACT(YEARFROMSYSDATE)
+	------------------------
+	                    2018
+
+문제 499. 오늘날짜에서 달을 추출하시오 !
+	select extract ( month from sysdate )
+	  from dual;
+	EXTRACT(MONTHFROMSYSDATE)
+	-------------------------
+	                       11
+
+문제 500. 입사한 년도, 입사한 년도별 토탈월급을 출력하시오 !
+	select extract ( year from hiredate ), sum(sal)
+	     from emp
+	     group by extract ( year from hiredate );
+
+	EXTRACT(YEARFROMHIREDATE)   SUM(SAL)
+	------------------------- ----------
+	                     1982       4300
+	                     1983       1100
+	                     1980        800
+	                     1981      19825
+
+★ tz_offset 함수
+	"영국의 그리니치 천문대를 기준으로 각 나라의 시간대를 확인하는 함수"
+	
+	예 : 우리나라의 시간대로 확인하시오 !
+		select tz_offset ('Asia/Seoul')
+		  from dual;
+
+		select * from v$timezone_names
+		  where lower(tzname) like '%seoul%';
+
+★ to_timestamp 함수 ( p 218 )
+
+	- flashback query시에 활용
+	- flashback table시에 활용
+
+문제 501. 지금부터 10분전에 emp테이블의 king의 월급이 얼마였는지 확인하시오 !
+	update emp
+	  set sal = 0 
+	  where ename = 'KING';
+
+	commit;
+
+	select ename, sal
+	  from emp
+	  as of timestamp (systimestamp - interval '10' minute)
+	  where ename = 'KING';
+
+
+★ to_yminterval 함수
+	
+	예 : 오늘부터 1년 2개월 후의 날짜가 어떻게 되는가?
+
+	select sysdate + to_yminterval('01-02')
+	  from dual;
+
+
+문제 502. 위의 문제를 to_yminterval 사용하지 않고 해결하시오 !
+	select add_months(sysdate, 14)
+	  from dual;
+
+
+★ to_dsinterval (days ~ seconds )
+	
+	예 : 지금부터 100일 10시간 뒤의 날짜가 어떻게 되는가 ?
+	select sysdate + to_dsinterval('100-10:00:00')
+	  from dual;
+
+■ 17장. 고급 서브쿼리문
+ * 목차
+ 1. 스칼라 서브쿼리
+ 2. 상호관련 서브쿼리
+ 3. exists 문
+ 4. with 절
+
+★ 1. 스칼라 서브쿼리
+	* select 문에서 서브쿼리를 쓸 수 있는 절
+
+	select 	  --->	subquery 가능 ( 스칼라 서브쿼리 )
+	from	  --->	subquery 가능
+	where	  --->	subquery 가능
+	group by  --->	불가능
+	having	  --->	subquery 가능
+	order by  --->	subquery 가능 ( 스칼라 서브쿼리 )
+
+문제 503. 사원테이블의 평균월급을 출력하시오.
+	select avg(sal)
+	  from emp;
+
+문제 504. 사원번호, 이름, 월급, 사원테이블의 평균월급을 출력하시오 !
+	select empno, ename, sal, avg(sal) over ()
+	  from emp;
+
+문제 505. 위의 결과를 데이터 분석함수를 이용하지 말고 수행하시오 !
+	select empno, ename, sal, (select avg(sal) from emp)
+	  from emp;
+
+문제 506. 사원번호, 이름, 월급, 사원테이블의 토탈월급,
+				사원테이블의 최대월급, 
+				사원테이블의 최소월급,
+				사원테이블의 평균월급을
+	  출력하시오 !
+
+	답1
+	select empno, ename, sal, sum(sal) over (),
+				  max(sal) over (),
+				  min(sal) over (),
+				  avg(sal) over ()
+	  from emp;
+	
+	답2
+	select empno, ename, sal, (select sum(sal) from emp) 토탈,
+				  (select max(sal) from emp) 최대,
+				  (select min(sal) from emp) 최소,
+				  (select avg(sal) from emp) 평균
+	  from emp;
+
+		 0  db block gets
+		16  consistent gets
+		 0  physical reads
+
+	select empno, ename, sal, (select sum(sal), max(sal), min(sal), avg(sal) from emp)
+	  from emp;
+		
+		1행에 오류:
+		ORA-00913: too many values
+	
+		※ 스칼라 서브쿼리의 특징 !
+			"스칼라 서브쿼리는 하나의 값만 리턴한다."
+
+	select empno, ename, sal, 
+	       (select sum(sal) || max(sal) || min(sal) || avg(sal) from emp)
+	  from emp;
+	
+문제 507.(점심시간 문제) 위의 SQL에 substr을 사용해서 아래와 같이 결과가 출력되게 하시오 !
+
+	사원번호	이름	월급	토탈	최대	최소	평균
+	7782		CLECK	2450	29025	5000	800	2073
+
+	답1
+	select empno, ename, sal, substr(an,1 ,5) 토탈,
+				  substr(an,6 ,4) 최대, 
+				  substr(an,10,3) 최소, 
+				  substr(an,13,4) 평균
+	  from (select empno, ename, sal, 
+		       (select sum(sal) ||
+			       max(sal) || 
+			       min(sal) || 
+	                       avg(sal) 
+			  from emp) an
+		  from emp);
+
+	답2 (문제 506의 답2의 튜닝 후)
+	select empno, ename, sal, trim(substr(an,1 ,10)) 토탈,
+				  trim(substr(an,11,10)) 최대, 
+				  trim(substr(an,21,10)) 최소, 
+				  trim(substr(an,31,10)) 평균
+	  from (select empno, ename, sal, 
+		       (select rpad(sum(sal),10,' ') ||
+			       rpad(max(sal),10,' ') || 
+			       rpad(min(sal),10,' ') || 
+	                       round(avg(sal)) 
+			  from emp) an
+		  from emp);
+
+		0  db block gets
+		7  consistent gets
+		0  physical reads
+	
+문제 508. 직업이 SALESMAN인 사원들의
+	  이름, 월급, 직업, 직업이 SALESMAN인 사원들의 최대월급,
+			    직업이 SALESMAN인 사원들의 최소월급,
+			    직업이 SALESMAN인 사원들의 토탈월급,
+			    직업이 SALESMAN인 사원들의 평균월급
+	  을 출력하시오 !
+	답1
+	select ename, sal, job,
+		(select max(sal) from emp where job = 'SALESMAN'),
+		(select min(sal) from emp where job = 'SALESMAN'),
+		(select sum(sal) from emp where job = 'SALESMAN'),
+		(select avg(sal) from emp where job = 'SALESMAN')
+	  from emp
+	  where job = 'SALESMAN';
+
+		 0  db block gets
+		16  consistent gets
+		 0  physical reads
+
+	답2
+	select ename, sal, job, max(sal) over (partition by job) 최대,
+				min(sal) over (partition by job) 최소,
+				sum(sal) over (partition by job) 토탈,
+				avg(sal) over (partition by job) 평균
+	  from emp
+	  where job = 'SALESMAN';
+
+		 0  db block gets
+		 3  consistent gets
+		 0  physical reads
+
+	답3
+	select ename, sal, job, trim(substr(an,1,10)) 최대,
+				trim(substr(an,11,10)) 최소,
+				trim(substr(an,21,10)) 토탈,
+				trim(substr(an,31,10)) 평균
+	  from (select ename, sal, job,
+		       (select rpad(max(sal),10,' ') ||
+			       rpad(min(sal),10,' ') || 
+			       rpad(sum(sal),10,' ') || 
+	                       round(avg(sal))
+			  from emp
+			  where job = 'SALESMAN') an
+		  from emp)
+	  where job = 'SALESMAN';
+
+		0  db block gets
+		7  consistent gets
+		0  physical reads
+
+
+★ 상호관련 서브쿼리
+	"메인쿼리의 컬럼이 서브쿼리 안으로 들어가게 되는 SQL 을 상호관련 서브쿼리라고 한다."
+
+	예 : 직업별 인원수가 4명 이상인 직업인 사원들의 이름과 직업을 출력하시오 !
+		select ename, job
+		  from emp m
+		  where 4 <= (select count(*) 
+				from emp s
+				where job = m.job);
+
+		※ 상호관련 서브쿼리는 main query 부터 실행이 된다.
+		   메인쿼리의 컬럼을 하나씩 서브쿼리에서 읽으면서 서브쿼리가 완성되고
+		   서브쿼리가 완성된 후 메인쿼리가 수행되어 완성되어서 출력이 된다.
+
+
+문제 509. 우리반에서 나이가 같은 나이인 동료 학생이 한명도 없는 학생들의 이름과 나이를 출력하시오 !
+	select ename, age
+	  from emp2 m
+	  where 1 = (select count(*)
+		       from emp2 s
+		       where s.age = m.age);
+
+
+★ exists 문
+
+문제 510. 부서 테이블의 부서번호를 출력하는데 사원 테이블에 존재하는 부서번호만 출력하시오 !
+
+	답1
+	select deptno
+	  from dept
+	  where deptno in (select deptno 
+			     from emp);
+
+	답2
+	select deptno
+	  from dept d
+	  where exists (select 'A'
+			  from emp e
+			  where e.deptno = d.deptno);
+		※ exists 문은 메인 쿼리부터 수행한다.
+		   exists 문은 메인쿼리의 데이터를 서브쿼리에서 찾을때 
+		   존재하면 더 이상 찾지 않고 멈춘다.
+		   그래서 검색속도가 빠르다.
+
+문제 511. 아래의 SQL을 튜닝하시오 !
+
+	튜닝전 :
+	select distinct 관리자.ename
+	  from emp 사원, emp 관리자
+	  where 사원.mgr = 관리자.empno;
+		------------------
+		0  db block gets
+		6  consistent gets
+		0  physical reads
+
+	튜닝후 :
+	select ename
+	  from emp 관리자
+	  where exists (select 'A'
+			  from emp 사원
+			  where 사원.mgr = 관리자.empno);
+		------------------
+		0  db block gets
+		7  consistent gets
+		0  physical reads
+
+		※ exists가 효과를 보려면 메인쿼리의 테이블이 더 작아야 한다.
+
+
+------------------------------
+create table telecom_price
+ (telecom_id number(10),
+  telecom_name varchar2(10) );
+
+insert into telecom_price
+  values (1, 'sk');
+insert into telecom_price
+  values (2, 'lg');
+insert into telecom_price
+  values (3, 'kt');
+insert into telecom_price
+  values (4, 'cj hello');
+------------------------------
+
+
+문제 512. 우리반 테이블에서 telecom_price 존재하지 않는 통신사가 어떤건지 통신사 이름을 출력하시오 !
+
+	select telecom_name
+	  from telecom_price t
+	  where not exists (select 'A'
+			      from emp2 e
+			      where e.telecom = t.telecom_name);
+		TELECOM_NAME
+		--------------------
+		cj hello
+
+-----------------------------------
+create table telecom_price_backup
+as
+select * from telecom_price;
+
+select * from telecom_price_backup;
+-----------------------------------
+
+
+문제 513. telecom_price에는 존재하는데 우리반 테이블에는 존재하지 않는 통신사를 telecom_price에서 지우시오 !
+	delete from telecom_price t
+	  where not exists (select 'A'
+			      from emp2 e
+			      where e.telecom = t.telecom_name);
+
+	select * from telecom_price;
+		-------------------------------
+		TELECOM_ID TELECOM_NAME
+		---------- --------------------
+		         1 sk
+		         2 lg
+		         3 kt
+
+---------
+rollback;
+---------
+
+
+★ with 절 ( p 255 )
+	"복잡한 쿼리내에 동일한 쿼리 블럭이 두번 이상 발생하는 경우에 사용하면 코드도 단순해지고
+	 성능도 좋아지는 SQL"
+		※전치사 with : ~와 함께
+
+문제 514. 직업, 직업별 토탈월급을 출력하시오 !
+	select job, sum(sal)
+	  from emp
+	  group by job;
+		-----------------------------
+		JOB                  SUM(SAL)
+		------------------ ----------
+		SALESMAN                 5600
+		CLERK                    4150
+		PRESIDENT                5000	
+		MANAGER                  8275	
+		ANALYST                  6000
+
+문제 515. 직업별 토탈월급들의 평균값을 출력하시오 !
+	내 답
+	select round(avg(sumsal))
+	  from (select sum(sal) sumsal
+		  from emp
+		  group by job);
+	선생님 답
+	select avg(sum(sal))
+	  from emp
+	  group by job;
+
+문제 516. 직업, 직업별 토탈월급을 출력하는데 직업별 토탈월급들의 평균값보다 더 큰것만 출력하시오 !
+	select job, sum(sal)
+	  from emp
+	  group by job
+	  having sum(sal) > (select avg( sum(sal) )
+			       from emp
+			       group by job);
+		※ 동일한 쿼리블럭(직업별 토탈월급) 두번이상 발생 (비슷한 SQL)
+
+문제 518. 위의 SQL을 with절로 변경하시오 !
+	with job_sumsal as (select /*+ inline */ job, sum(sal) 토탈월급
+			      from emp
+			      group by job)
+	select job, 토탈월급
+	  from job_sumsal
+	  where 토탈월급 > ( select avg(토탈월급)
+			       from job_sumsal);
+		---------------------------------------------------------------
+		| Id  | Operation                  | Name                     |
+		---------------------------------------------------------------
+		|   0 | SELECT STATEMENT           |                          |
+		|   1 |  TEMP TABLE TRANSFORMATION |                          |
+		|   2 |   LOAD AS SELECT           | SYS_TEMP_0FD9D6601_8A8F2 |
+		|   3 |    HASH GROUP BY           |                          |
+		|   4 |     TABLE ACCESS FULL      | EMP                      |
+		|*  5 |   VIEW                     |                          |
+		|   6 |    TABLE ACCESS FULL       | SYS_TEMP_0FD9D6601_8A8F2 |
+		|   7 |    SORT AGGREGATE          |                          |
+		|   8 |     VIEW                   |                          |
+		|   9 |      TABLE ACCESS FULL     | SYS_TEMP_0FD9D6601_8A8F2 |
+		---------------------------------------------------------------
+		※ with절 문장은 마치 job_sumsal 이라는 테이블을 하나 만들어 놓은 효과이다.
+		   효력은 이 문장에서만 발생 나중에 job_sumsal 해도 검색 안됨!(TEMP TABLE TRANSFORMATION)
+		   왜 이게 더 빠른 SQL이냐 동일한 쿼리블럭을 select 하는 것은 같은것을 두번함
+		   이 쿼리는 with절에서 한번 select 하기 때문에 빠름 (거의 절반으로 시간 단축)
+
+		※ with 절의 유명한 힌트 2가지 ?
+		1. /*+ inline */ ---> temp 테이블 안만들겠다.
+				      (with절이 아니라 그냥 서브쿼리로 수행)
+		2. /*+ materialize */ ---> temp 테이블을 만들겠다.
+
+문제 519. 아래의 SQL을 with절로 변경하시오 !
+	(오늘의 마지막 문제)
+	변경 전 :
+	select d.loc, sum(sal)
+	  from emp e, dept d
+	  where e.deptno = d.deptno
+	  group by d.loc
+	  having sum(sal) > (select avg( sum(sal) )
+			       from emp e, dept d
+			       where e.deptno = d.deptno
+			       group by d.loc )
+	  and    sum(sal) > (select sum( sum(sal) )/4
+			       from emp e, dept d
+			       where e.deptno = d.deptno
+			       group by d.loc);
+		-------------------
+		 0  db block gets
+		18  consistent gets
+		 0  physical reads
+
+	변경 후 : 
+	with loc_sumsal as(select /*+ inline */ d.loc, sum(sal) sumsal
+			     from emp e, dept d
+			     where e.deptno = d.deptno
+			     group by d.loc)
+	select loc, sumsal
+	  from loc_sumsal
+	  where sumsal > (select avg(sumsal)
+			    from loc_sumsal)
+	    and sumsal > (select sum(sumsal)/4
+			    from loc_sumsal);
+
+		-------------------		
+		 0  db block gets
+		18  consistent gets
+		 0  physical reads
+		 0  redo size

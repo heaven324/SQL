@@ -1,0 +1,578 @@
+﻿★ flashback query
+	• 새로운 데이터베이스에 접속하는 방법 
+		C:\Users\Administrator>set ORACLE_SID=orcl
+		
+		C:\Users\Administrator>sqlplus / as sysdba
+		
+		SQL> select instance_name
+		  2    from v$instance;
+		
+		INSTANCE_NAME
+		----------------
+		orcl
+
+
+★  12c 오라클 접속하는 방법 
+
+	 1. 도스창을 연다.
+
+	 2. C:\Users\stu>set ORACLE_SID=orcl
+	
+	 3. 리스너의 상태를 확인한다.
+	      ↓
+	    데이터 베이스 접속할때 통과해야하는 데몬
+	
+	 4. lsnrctl status
+	
+	 5. 오라클에 sys 유져로 접속을 한다.
+	
+	
+	  c:> sqlplus  /  as  sysdba
+	
+	  SQL> show   user
+	
+	 6. 12c 의 데이터 베이스가 무엇이 있는지 확인 
+	
+	    SQL> SELECT name, pdb
+	            FROM   v$services
+	            ORDER BY name;
+	
+	NAME                 PDB
+	-------------------- -----------
+	SYS$BACKGROUND       CDB$ROOT
+	SYS$USERS            CDB$ROOT
+	orcl                 CDB$ROOT
+	orclXDB              CDB$ROOT
+	pdborcl              PDBORCL   <---  이것을 확인
+	
+	 7. 어느 데이터베이스로 접속이 되어있는지 확인 
+	
+	SQL> show con_name
+	
+	CON_NAME
+	-----------
+	CDB$ROOT   
+	
+	 8. pdborcl 데이터베이스를 사용하겠다라고 설정 
+	
+	SQL>  alter session set container=pdborcl;
+	
+	SQL> show con_name
+	
+	CON_NAME
+	-----------
+	PDBORCL
+	
+	 9. pdborcl 에 sys 유져로 접속한다.     최고 권한자로 들어가겠다
+	                                                  ↓
+	SQL> connect sys/oracle@localhost:1522/pdborcl as sysdba
+	                           ↑       ↑      ↑
+	                       아이피주소  포트번호 디비이름
+	
+	10. 현재 접속한 데이터 베이스가 open인지 확인  
+	
+	SQL> select instance_name , status
+	  2   from v$instance;
+	
+	INSTANCE_NAME    STATUS
+	---------------- ------------
+	orcl             MOUNTED
+	
+	11. pdborcl 데이터베이스를 올린다.
+	
+	SQL> alter  database  pdborcl  open;
+	
+	데이타베이스가 변경되었습니다.
+	
+	12. 잘 올라갔는지 확인 
+	
+	SQL>  select instance_name , status
+	  2    from v$instance;
+	
+	13. scott 유져의 lock 을 해제하고 패스워드를 tiger
+	    로 변경한다.
+	
+	SQL> alter  user  scott 
+	     account  unlock;
+	
+	SQL> alter  user  scott
+	     identified  by  tiger;
+	
+	10. scott 으로 접속한다. 
+	
+	SQL> connect scott/tiger@localhost:1522/pdborcl
+	연결되었습니다.
+	
+
+★ 데이터 분석가에게 필요한 flashback 기술 정리 
+	"데이터를 과거로 되돌리는 기능
+
+	1. flashback drop
+	2. flashback Query
+	3. flashback table
+
+★flashback drop
+	SQL> drop table emp;
+	
+	테이블이 삭제되었습니다.
+	
+	SQL> show recyclebin
+	ORIGINAL NAME    RECYCLEBIN NAME                OBJECT TYPE  DROP TIME
+	---------------- ------------------------------ ------------ -------------------
+	EMP              BIN$cyENOCPwReat6n76v0nJvw==$0 TABLE        2018-11-02:10:31:00
+	
+	 * 휴지통에서 복원 작업
+	SQL> flashback table emp to before drop;
+	
+	플래시백이 완료되었습니다.
+	
+
+문제 481. emp테이블을 ctas로 백업하시오 !
+	create table emp_backup
+	as
+	select *
+	  from emp;
+
+
+★ flashback Query
+	"과거의 데이터를 확인하는 쿼리문"
+
+	SQL> delete from emp;
+	
+	14 행이 삭제되었습니다.
+	
+	SQL> commit;
+	
+	커밋이 완료되었습니다.
+	
+	select * from emp
+	  as of timestamp to_timestamp('2018/11/02:10:30:00','rrrr/mm/dd:hh24:mi:ss');
+
+
+★ flashback table
+
+	1. table 을 flashback table 이 가능하도록 설정한다
+		alter table emp enable row movement;
+
+	2. 위에서 확인한 flashback query 시간데로 테이블을 되돌린다.
+		flashback table emp to timestamp
+		  to_timestamp ( '2018/11/02:10:30:00','rrrr/mm/dd:hh24:mi:ss');
+
+	3. flashback 이 잘 되었는지 확인한다.
+		select * from emp;
+
+	4. 커밋을 한다.
+		commit;
+
+
+문제 482. dept 테이블과 salgrade테이블을 delete하고 commit하시오 !
+	delete from dept;
+	delete from salgrade;
+	commit;
+
+문제 483. dept 테이블과 salgrade테이블을 flashback해서 복구하시오 !
+	select * from dept
+	  as of timestamp to_timestamp('2018/11/02:11:20:00','rrrr/mm/dd:hh24:mi:ss');
+
+	select * from salgrade
+	  as of timestamp to_timestamp('2018/11/02:11:20:00','rrrr/mm/dd:hh24:mi:ss');
+
+	alter table dept enable row movement;
+	alter table salgrade enable row movement;
+
+	flashback table dept to timestamp
+	  to_timestamp('2018/11/02:11:20:00','rrrr/mm/dd:hh24:mi:ss');
+
+	flashback table salgrade to timestamp
+	  to_timestamp('2018/11/02:11:20:00','rrrr/mm/dd:hh24:mi:ss');
+
+
+ * 골든 타임 확인 하는 방법
+
+show parameter undo_retention
+
+	SQL> connect  sys/oracle@localhost:1522/pdborcl as sysdba
+	연결되었습니다.
+
+	SQL> show parameter undo
+	
+	NAME                                 TYPE        VALUE
+	------------------------------------ ----------- --------
+	temp_undo_enabled                    boolean     FALSE
+	undo_management                      string      AUTO
+	undo_retention                       integer     900        <----- 복구 가능 시간 15분!
+	undo_tablespace                      string      UNDOTBS1
+
+	alter system set undo_retention=2000;
+
+
+grant dba to scott;
+
+alter user sh account unlock;
+
+alter user sh identified by sh;
+
+alter user hr account unlock;
+
+alter user sh identified by hr;
+
+
+
+SQL> exit
+
+C:\Users\Administrator>set ORACLE_SID=xe
+
+C:\Users\Administrator>sqlplus heaven/heaven
+
+
+★다중 insert 문 4가지 (p 164)
+
+	1. 무조건 insert
+	2. 조건부 insert
+	3. 조건부 insert first
+	4. pivoting insert
+
+
+		 (3권 162 페이지의 그림 참고!)
+
+	"다중 insert문은 여러개의 테이블에 하나의 데이터를 동시에 입력하는 SQL문"
+
+
+문제 484. 아래의 테이블을 생성하고 아래의 테이블에 emp 테이블에서 empno, ename, sal, deptno를 입력하시오 !
+	create table emp1000
+	as
+	select *
+	  from emp
+	  where 1=2;
+
+	create table emp2000
+	as
+	select *
+	  from emp
+	  where 1=2;
+
+	create table emp3000
+	as
+	select *
+	  from emp
+	  where 1=2;
+
+		insert into emp1000(empno, ename, sal, deptno)
+		  select empno, ename, sal, deptno
+		  from emp;
+		
+		insert into emp2000(empno, ename, sal, deptno)
+		  select empno, ename, sal, deptno
+		  from emp;
+
+		insert into emp3000(empno, ename, sal, deptno)
+		  select empno, ename, sal, deptno
+		  from emp;
+
+문제 485. 위의 문제를 다시 해결하는데 이번에는 emp1000, emp2000, emp3000에 다중 insert문을 이용해서 한번에
+	  입력되게 하시오 ! ( p 162 )
+	insert all 
+	  into emp1000(empno, ename, sal, deptno)
+	  into emp2000( empno, ename, sal, deptno)
+	  into emp3000( empno, ename, sal, deptno)
+	  select empno, ename, sal,deptno
+	  from emp;
+
+문제 486. 조건부 insert를 이용해서  p 170 페이지를 잘 보고 
+	  emp 테이블에서 부서번호 10번은 emp1000에 입력
+			 부서번호 20번은 emp2000에 입력
+			 부서번호 30번은 emp3000에 입력되게
+	  하시오 ! (점심시간 문제)
+	  컬럼은 전체 컬럼을 다 입력하게 하시오 !
+
+	insert all
+	  when deptno = 10 then
+	  into emp1000
+	  when deptno = 20 then
+	  into emp2000
+	  when deptno = 30 then
+	  into emp3000
+	  select * from emp;
+
+		select * from emp1000;
+		select * from emp2000;
+		select * from emp3000;
+
+
+4. pivoting insert 
+
+문제 487. 우리반 테이블의 구조를 담는 테이블 3개를 아래와 같이 만드시오 
+	emp2_sk
+	emp2_lg
+	emp2_kt
+
+	create table emp2_sk
+	as
+	select * from emp2 where 1=2;
+
+	create table emp2_lg
+	as
+	select * from emp2 where 1=2;
+
+	create table emp2_kt
+	as
+	select * from emp2 where 1=2;
+
+문제 488. 조건부 다중 insert문을 이용해서 우리반 테이블의 데이터중에 sk는 emp2_sk로 
+	  lg는 emp2_lg로 kt는 emp2_kt로 데이터를 이행하시오 !
+	insert all
+	  when lower(telecom) = 'sk' then
+	  into emp2_sk
+	  when lower(telecom) = 'lg' then
+	  into emp2_lg
+	  when lower(telecom) = 'kt' then
+	  into emp2_kt
+	select * from emp2;
+
+
+★ 조건부 insert first ( 첫번째 조건을 우선 처리하고 나머지 조건을 쿼리에 넣어줌 )
+
+문제 489. 위의 테이블 3개를 다 truncate시키고 다시 데이터를 입력하는데 나이가 30대 이상이면
+	  통신사와 상관없이 emp2_sk 에 입력하고 나머지 20대인 학생들 중에서 통신사가 lg이면
+	  emp2_lg 에 입력하고 통신사가 kt면 emp2_kt에 입력하시오 ( p 172 ~ 173 확인)
+
+	truncate table emp2_sk;
+	truncate table emp2_lg;
+	truncate table emp2_kt;
+
+	insert first
+	  when age >= 30 then
+	  into emp2_sk
+	  when lower(telecom) = 'lg' then
+	  into emp2_lg
+	  when lower(telecom) = 'kt' then
+	  into emp2_kt
+	  select * from emp2;
+
+★ pivoting insert
+	"컬럼이 데이터가 되어서 테이블에 입력되어야 할때 사용하는 insert문"
+
+만들어라
+create table order2
+( ename  varchar2(10),
+  bicycle  number(10),
+  camera   number(10),
+  notebook  number(10) );
+
+
+
+
+insert  into  order2  values('SMITH', 2,3,1);
+insert  into  order2  values('ALLEN',1,2,3 );
+insert  into  order2  values('KING',3,2,2 );
+
+
+
+
+commit;
+
+문제 490. unpivot문을 이용해서 order2를 아래와 같이 출력하시오 !
+
+	ENAME                AAA                     BBB
+	-------------------- ---------------- ----------
+	SMITH                BICYCLE                   2
+	SMITH                CAMERA                    3
+	SMITH                NOTEBOOK                  1
+	ALLEN                BICYCLE                   1
+	ALLEN                CAMERA                    2
+	ALLEN                NOTEBOOK                  3
+	KING                 BICYCLE                   3
+	KING                 CAMERA                    2
+	KING                 NOTEBOOK                  2
+	
+	select * from order2
+	  unpivot( ITEM for CNT in ( BICYCLE,CAMERA, NOTEBOOK));
+	
+문제 491. 아래의 지역별 범죄현황 데이터를 오라클 db에 입력하시오 !
+
+create table crime_age
+( local varchar2(100),
+type varchar2(20),
+sum_tot number(10),
+under_6 number(10),
+under_12 number(10),
+under_15 number(10),
+under_20 number(10),
+under_30 number(10),
+under_40 number(10),
+under_50 number(10),
+under_60 number(10),
+over_60 number(10),
+unkonwn number(10),
+gender varchar2(20),
+year number(10)
+);
+
+문제 492. crime_age테이블을 unpivot해서 아래의 결과를 출력하시오 !
+
+	답1
+	select * from crime_age
+	  unpivot ( cnt for age in (under_6,
+				    under_12,
+				    under_15,
+				    under_20,
+				    under_30,
+				    under_40,
+				    under_50,
+				    under_60,
+				    over_60));
+
+	답2
+	select * from (SELECT LOCAL,
+				type,
+	                    	sum_tot, 
+	                    	under_6,
+	                    	under_12,
+	       		       	under_15,
+	                   	under_20,
+	                   	under_30,
+	                   	under_40,
+	                        under_50,
+	                        under_60,
+	                        over_60, 
+	                        gender 
+	                   FROM crime_age)
+	  unpivot ( cnt for age in (under_6,
+	                            under_12,
+	                            under_15,
+	                            under_20,
+	                            under_30,
+	                            under_40,
+	                            under_50,
+	                            under_60,
+	                            over_60));
+
+문제 493. 2014년도에 살인의 피해자인 나이대, 나이대별 건수를 출력하시오 !
+
+	select age, SUM(cnt) from crime_age
+	  unpivot ( cnt for age in (under_6,
+                                under_12,
+                                under_15,
+                                under_20,
+                                under_30,
+                                under_40,
+                                under_50,
+                                under_60,
+                                over_60))
+	WHERE TYPE = '살인'
+	GROUP BY age
+	ORDER BY SUM(cnt) DESC;
+
+문제 494. pivoting insert 문을 이용해서 나이대에 대한 정보를 테이블의 data로 만드시오.
+
+	create table crime_age2
+	 ( local varchar2(100),
+	   type varchar2(20),
+	   sum_tot number(10),
+	   age_type varchar2(20),
+	   cnt number(10) );
+
+	insert all
+	  into crime_age2 values(local, type, sum_tot, 'under_6',under_6)
+	  into crime_age2 values(local, type, sum_tot, 'under_12',under_12)
+	  into crime_age2 values(local, type, sum_tot, 'under_15',under_15)
+	  into crime_age2 values(local, type, sum_tot, 'under_20',under_20)
+	  into crime_age2 values(local, type, sum_tot, 'under_30',under_30)
+	  into crime_age2 values(local, type, sum_tot, 'under_40',under_40)
+	  into crime_age2 values(local, type, sum_tot, 'under_50',under_50)
+	  into crime_age2 values(local, type, sum_tot, 'under_60',under_60)
+	  into crime_age2 values(local, type, sum_tot, 'over_60', over_60)
+	select local, type, sum_tot, under_6,under_12,under_15,under_20,
+	       under_30,under_40,under_50,under_60,over_60
+	  from crime_age;
+
+문제 495. 서울시내에서 살인이 가장 많이 일어나는 지역이 어디인지 지역이름, 건수, 순위를 출력하시오 !
+
+	SELECT LOCAL, sum(cnt),DENSE_RANK() OVER (ORDER BY sum(cnt) desc) AS 순위
+	  FROM crime_age2
+	  WHERE TYPE = '살인'
+	  GROUP BY local;
+
+
+
+	11g				12c
+데이터베이스 이름 : xe		데이터베이스 이름 : orcl
+
+기능이 약한 소프트웨어		오라클의 모든 기능이 다 패키징 되어있다
+
+scott 유저 생성			scott 유저가 이미 생성됨
+				emp, dept,salgrade
+demobld 스크립트		다 이미 가지고 있다.
+
+emp
+emp2
+
+
+★ merge 문 ( p 180 )
+	" insert, update, delete 를 한번에 수행하는 명령어"
+
+문제 496. emp 테이블로 emp5000 테이블을 생성하고 emp5000테이블의 데이터 절반을 지우시오!
+	create table emp5000
+	as
+	select * from emp;
+
+	delete from emp5000 where rownum <=8;
+
+	commit;
+
+	select count(*) from emp5000;
+
+	  COUNT(*)
+	----------
+	         9
+
+	update emp5000
+	  set sal = 0;
+
+	commit;
+	
+	select * from emp5000;
+
+문제 497. emp테이블의 있는 데이터를 emp5000에 merge하는데 emp 테이블과 emp5000에 양쪽에 다 존재하는 사원들은
+	  emp5000 의 사원들의 월급을 emp테이블의 사원의 월급으로 변경하고 그렇지 않고 emp테이블과 emp5000에
+	  양쪽에 다 존재하지 않고 emp 에만 존재하는 사원들은 emp5000에 입력하시오 !
+
+	merge into emp5000 e5
+	using emp e
+	on (e5.empno = e.empno)
+	when matched then
+	 update set e5.sal = e.sal
+	when not matched then
+	insert (e5.empno, e5.ename, e5.job, e5.mgr, e5.hiredate, e5.sal, e5.comm, e5.deptno)
+	values (e.empno, e.ename, e.job, e.mgr, e.hiredate, e.sal, e.comm, e.deptno);
+
+문제 498. 문제 497번 상황을 똑같이 만들고 emp테이블에서 emp5000테이블에 있는 사원 한명을 지우시오!
+	merge 문 3가지 수행
+	1. emp의 월급으로 -----> emp5000의 월급 갱신
+	2. emp            -----> emp5000에 insert
+		(emp5000에 없는 사원들의 데이터만 입력)
+	3. emp테이블에는 존재하지 않는데 emp5000에만 있는 사원들은 지우시오 !
+
+	delete from emp where ename = 'FORD';
+
+	merge into emp5000 a
+	  USING
+	    (SELECT e.*, 'N' AS del
+	       from emp e
+	     union all
+	     select e5.*, 'Y' AS del
+	       from emp5000 e5
+	       WHERE e5.empno NOT IN (SELECT EMPNO FROM emp) ) b
+	  ON(a.empno = b.empno)
+	  when matched then
+	    update set a.sal = b.sal
+	    delete where ( b.del = 'Y' )
+	  when not matched then
+	    insert (empno, ename, sal, job, hiredate, mgr, comm, deptno)
+	    values(b.empno, b.ename, b.sal, b.job, b.hiredate, b.mgr, b.comm, b.deptno) ;
+		
+		※ using절에서 delete 했는데 이경우 emp5000의 데이터를 지운 것이므로
+		   마지막에 insert할 때 FORD는 emp5000, using 절의 서브쿼리문 어디에도
+		   존재하지 않는다
+
+

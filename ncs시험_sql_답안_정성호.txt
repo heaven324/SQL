@@ -1,0 +1,107 @@
+
+문제 1.
+
+select to_char(hiredate, 'mm') 월, count(*) 입사자수
+  from emp
+  group by to_char(hiredate, 'mm')
+  order by 월 asc;
+
+
+문제 2.
+
+select  ename, sal, 
+	ntile(4) over (order by sal desc), 
+	rank() over (order by sal desc)
+  from emp
+  order by sal desc;
+
+
+문제 3.
+
+교통범죄
+
+select *
+ from(select crime_type, max(f0t3+f21t24) f21t3
+        from crime_time
+       group by crime_type)
+ where f21t3 = (select max(f0t3+f21t24) from crime_time);
+
+
+
+문제 4.
+
+select to_char(hiredate, 'rrrr') 년도, 
+listagg(ename, ',') within group (order by to_char(hiredate, 'rrrr')) 사원명,
+	sum(sal) 토탈월급
+  from emp
+  group by rollup(to_char(hiredate, 'rrrr'));
+
+
+문제 5. 
+
+
+SELECT NVL(D.LOC,'no loc') loc,
+       nvl(TO_CHAR(e.deptno),'no deptno') deptno, 
+       nvl(e.ename, 'no employe') ename
+  FROM EMP e FULL outer join DEPT d
+  ON( e.deptno = d.deptno);
+
+
+문제 6.
+
+SELECT m.ename
+FROM EMP e, EMP m
+WHERE e.mgr(+) = m.empno
+  AND e.ename IS null;
+
+
+문제 7. 
+
+SELECT m.ename||'('||m.sal||')' 관리자, 
+      LISTagg(e.ename||'('||e.sal||')', ',') within GROUP (ORDER BY m.ename) 사원
+  FROM EMP e, EMP m
+  WHERE e.mgr = m.empno
+  GROUP BY m.ename||'('||m.sal||')';
+
+
+문제 8.
+
+SELECT *
+FROM (SELECT e.ename, e.sal, d.loc, DENSE_RANK() OVER( ORDER BY e.sal desc) 순위
+  FROM EMP e, DEPT d
+  WHERE e.deptno = d.deptno)
+  WHERE 순위 <= 3;
+
+문제 9.
+
+SELECT *
+  FROM(SELECT ename, sal, deptno, round(AVG(sal) OVER (PARTITION BY deptno)) 평균
+         FROM EMP)
+  WHERE sal > 평균;
+
+
+문제 10.
+
+SELECT deptno, NVL(ename,'부서토탈') ename, SUM(sal)
+  FROM EMP
+  GROUP BY ROLLUP(deptno, ename) ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
